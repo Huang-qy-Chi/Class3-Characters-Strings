@@ -1,0 +1,134 @@
+---
+title: "dplyr包相关函数的练习"
+author: "黄启岳"
+date: "2021年3月10日"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##数据集介绍
+数据集出自2019年美国大学生数学建模竞赛C题，主要关注美国五个州出现的阿片类药物滥用问题。以下引用赛题对数据集的部分说明：
+
+The first file (MCM_NFLIS_Data.xlsx) contains drug identification counts in years 2010-2017 for narcotic analgesics (synthetic opioids) and heroin in each of the counties from these five states as reported to the DEA by crime laboratories throughout each state. A drug identification occurs when evidence is submitted to crime laboratories by law enforcement agencies as part of a criminal investigation and the laboratory’s forensic scientists test the evidence. Typically, when law enforcement organizations submit these samples, they provide location data (county) with their incident reports. When evidence is submitted to a crime laboratory and this location data is not provided, the crime laboratory uses the location of the city/county/state investigating law enforcement organization that submitted the case. For the purposes of this problem, you may assume that the county location data are correct as provided.
+
+
+##导入数据
+```{r}
+library(readxl)
+data1 <- readxl::read_xlsx("C:/Users/lenovo/Desktop/example-2/data1.xlsx")
+head(data1)
+```
+
+简单介绍一下每个变量的含义：YYYY代表年份；State代表州；COUNTY代表县；FIPS_系列变量是区号，为字符型变量；SubtanceName指代药物种类；DrugReports则代表对应年份、县的特定种类药物滥用报告数量，TotalDrugReportsCounty指单个县中指定年份总报告数，TotalDrugReportsState为全州总报告数。数据读取并存储为data1。tibble是一种类似数据框的数据结构，针对长列表显示更加友好。
+
+现在对数据进行汇总，使用summary函数即可，因为有用的数值型变量实际上只有3个，不涉及一些较为复杂的统计检验。粗略了解数据的总体情况summary函数最常用。
+
+```{r}
+summary(data1)
+```
+
+观察可以发现，数据没有缺失值，最后三个数值型变量均存在极端数据，最大值远远高于平均值以及中位数。这说明地区与地区之间药物滥用现象差异很显著，即呈现“中心爆发”的现象。
+
+进一步的数据探索过程在此省略，直接进入处理数据框的过程。
+
+##使用dplyr中的函数清洗
+建模过程中发现Hamilton报告的药物滥用现象出现得早，并且规模较大，决定对此地展开进一步研究。
+```{r}
+library(dplyr)
+```
+
+
+###课堂练习
+
+####正常写法
+首先计算Hamilton地区2010到2017年逐年Heroin与Fentanyl的totaldrugreportscounty/totaldrugreportsstate比值，即课堂练习部分。为此，需要先明确步骤：
+
+(1)筛选出Hamilton地区的所有药物滥用数据；
+
+(2)筛选出Hamilton地区的Heroine或Fentanyl的数据，这里建议分开展示；
+
+(3)计算出TotalDrugReportsCounty/TotalDrugReportssState，增加为新的一列，如命名为rate；
+
+(4)从变量中筛选出YYYY与rate，进行展示。
+
+(1)-(4)的顺序是可以调换的，因为其运行结果都是tibble即数据框，可以作为所有四步的“原料”。
+
+以下展示分别实现的方法。
+
+(1)筛选Hamilton，数据转存为data2
+```{r}
+data2 <- filter(data1, COUNTY == "HAMILTON")
+head(data2)
+```
+
+(2)筛选出Heroin和Fentanyl，数据转存为data3
+```{r}
+data31 <- filter(data2, SubstanceName == "Heroin")
+data32 <- filter(data2, SubstanceName == "Fentanyl")
+head(data31)
+head(data32)
+```
+
+(3)计算TotalDrugReportsCounty/TotalDrugReportsState，并且命名为rate，数据表分别命名为data41与data42
+```{r}
+data41 <- dplyr::mutate(data31, rate = TotalDrugReportsCounty/TotalDrugReportsState) #Heroin
+head(data41)
+data42 <- dplyr::mutate(data32, rate = TotalDrugReportsCounty/TotalDrugReportsState) #Fentanyl
+head(data42)
+```
+
+(4)筛选出YYYY与rate，供展示
+```{r}
+data51 <- select(data41, YYYY, rate) #Heroin
+data51
+data52 <- select(data42, YYYY, rate) #Fentanyl
+data52
+```
+
+至此完成了全部操作，计算结果除了2012年Fentanyl数据缺失以外是一样的。
+
+####管道函数
+正常写法中需要不停保存操作结果，即使采用反复赋值写法也相对比较麻烦。这时可以使用dplyr特有的管道函数%>%。使用如下：
+
+
+```{r}
+Heroin <- filter(data1, COUNTY == "HAMILTON") %>% #(1)
+  filter(SubstanceName == "Heroin") %>% #(2)
+  mutate(rate = TotalDrugReportsCounty/TotalDrugReportsState) %>% #(3)
+  select(YYYY, rate) #(4)
+Heroin
+```
+
+```{r}
+Fentanyl <- filter(data1, COUNTY == "HAMILTON") %>% #(1)
+  filter(SubstanceName == "Fentanyl") %>% #(2)
+  mutate(rate = TotalDrugReportsCounty/TotalDrugReportsState) %>% #(3)
+  select(YYYY, rate) #(4)
+Fentanyl
+```
+
+这样即可一步到位处理数据，十分方便，推荐大家使用管道函数写法。
+
+###附加
+思考以下两个管道函数代表的含义。从运行结果来看，你能得出什么结论？
+
+```{r}
+Heroin1 <- filter(data1, COUNTY == "HAMILTON") %>% #(1)
+  filter(SubstanceName == "Heroin") %>% #(2)
+  mutate(rate = DrugReports/TotalDrugReportsCounty) %>% #(3)
+  select(YYYY, rate) #(4)
+Heroin1
+```
+
+```{r}
+Fentanyl1 <- filter(data1, COUNTY == "HAMILTON") %>% #(1)
+  filter(SubstanceName == "Fentanyl") %>% #(2)
+  mutate(rate = DrugReports/TotalDrugReportsCounty) %>% #(3)
+  select(YYYY, rate) #(4)
+Fentanyl1
+```
+
+
